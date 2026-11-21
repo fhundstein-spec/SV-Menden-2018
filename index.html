@@ -111,7 +111,7 @@ function planView(){
   if(!fixtures.length)h+=` <button class="btn sec" data-act="seed">Spielplan 2026/27 laden</button>`;
   if(!list.length)h+=`<p class="mut">Keine kommenden Spiele für ${season}.</p>`;
   list.forEach(f=>{const t=tours.find(t=>t.fixtureId===f.id);
-    h+=`<div class="card item" data-act="fix" data-id="${f.id}"><div><b>${esc(f.title)}</b><div class="mut">${fmt(f.date)}${f.time?', '+esc(f.time)+' Uhr':''}${f.place?' · '+esc(f.place):''}</div></div>${t?`<div style="text-align:right"><span class="badge">Spiel läuft</span><div style="margin-top:6px"><button class="btn sec sm" data-act="reset" data-id="${t.id}">Zurücksetzen</button></div></div>`:'<span class="mut">Starten ›</span>'}</div>`});
+    h+=`<div class="card item" data-act="fix" data-id="${f.id}"><div><b>${esc(f.title)}</b><div class="mut">${fmt(f.date)}${f.time?', '+esc(f.time)+' Uhr':''}${f.place?' · '+esc(f.place):''}</div></div>${t?`<div style="text-align:right"><span class="badge">Spiel läuft</span>${t.dfb?`<div><b>DFBnet ${t.dfb.a}:${t.dfb.b}</b></div>`:''}<div style="margin-top:6px"><button class="btn sec sm" data-act="reset" data-id="${t.id}">Zurücksetzen</button></div></div>`:'<span class="mut">Starten ›</span>'}</div>`});
   return h;
 }
 function toursView(){
