@@ -102,7 +102,7 @@ function render(force){
       h+=tab==='plan'?planView():tab==='tours'?toursView():evalView();
     }
   }
-  $('#app').innerHTML=h+modalView()+'<div class="mut" style="margin-top:28px;text-align:center">Version E</div>';
+  $('#app').innerHTML=h+modalView()+'<div class="mut" style="margin-top:28px;text-align:center">Version F</div>';
 }
 function planView(){
   const today=new Date().toLocaleDateString('sv-SE');
@@ -143,8 +143,8 @@ function tourView(id){
     });
     h+=`<button class="btn sec sm" data-act="addg" data-t="${i}">+ Spiel anlegen</button></div>`;
   });
-  h+=`<div class="card"><b>DFBnet – finales Ergebnis</b><div class="mut">Ergebnis, auf das ihr euch geeinigt habt (Heim : Auswärts)</div>`+(t.dfb?`<div class="row"><span class="stp"><b style="font-size:18px;color:var(--tx)">${t.dfb.a}</b></span><span>:</span><span class="stp"><b style="font-size:18px;color:var(--tx)">${t.dfb.b}</b></span><button class="btn sec sm" data-act="dfbedit">Ändern</button></div>`:`<div class="row"><span class="stp"><input class="sc" id="dfb-a" type="number" inputmode="numeric" min="0" placeholder="0" value="${dfbA}"></span><span>:</span><span class="stp"><input class="sc" id="dfb-b" type="number" inputmode="numeric" min="0" placeholder="0" value="${dfbB}"></span><button class="btn sm" data-act="dfbsave">✓</button></div>`)+`</div>`;
-  const st=stats(t);return h+`<h2>Auswertung</h2><div class="card">${table(st,'Team',sum(st))}</div>`;
+  const dfbCard=`<div class="card"><b>DFBnet – finales Ergebnis</b><div class="mut">Ergebnis, auf das ihr euch geeinigt habt (Heim : Auswärts)</div>`+(t.dfb?`<div class="row"><span class="stp"><b style="font-size:18px;color:var(--tx)">${t.dfb.a}</b></span><span>:</span><span class="stp"><b style="font-size:18px;color:var(--tx)">${t.dfb.b}</b></span><button class="btn sec sm" data-act="dfbedit">Ändern</button></div>`:`<div class="row"><span class="stp"><input class="sc" id="dfb-a" type="number" inputmode="numeric" min="0" placeholder="0" value="${dfbA}"></span><span>:</span><span class="stp"><input class="sc" id="dfb-b" type="number" inputmode="numeric" min="0" placeholder="0" value="${dfbB}"></span><button class="btn sm" data-act="dfbsave">✓</button></div>`)+`</div>`;
+  const st=stats(t);return h+`<h2>Auswertung</h2><div class="card">${table(st,'Team',sum(st))}</div>`+dfbCard;
 }
 function modalView(){
   if(!modal)return '';
