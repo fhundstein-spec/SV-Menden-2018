@@ -141,7 +141,7 @@ function tourView(id){
       else h+=`${stp('a',g.a)}<span>:</span>${stp('b',g.b)}<button class="btn sm" data-act="save">✓</button>`;
       h+=`</div>`;
     });
-    h+=`</div>`;
+    h+=`<button class="btn sec sm" data-act="addg" data-t="${i}">+ Spiel anlegen</button></div>`;
   });
   const st=stats(t);return h+`<h2>Auswertung</h2><div class="card">${table(st,'Team',sum(st))}</div>`;
 }
@@ -197,6 +197,7 @@ document.addEventListener('click',async e=>{
   }
   if(a==='pm'&&t){const i=+row.dataset.t,j=+row.dataset.g,f=b.dataset.f,teams=clone(t.teams),g=teams[i].games[j];g[f]=Math.max(0,(g[f]||0)+(+b.dataset.d));await saveTeams(t,teams);return}
   if(a==='yes2'){const rid=modal.id;modal=null;if(openT===rid)openT=null;const tt=tours.find(x=>x.id===rid),n=tt?tt.teams.length:0;for(let i=0;i<n;i++)await deleteDoc(D('teamgames',rid+'_'+i));await deleteDoc(D('tournaments',rid));return render(true)}
+  if(a==='addg'&&t){const i=+b.dataset.t,teams=clone(t.teams);teams[i].games.push({a:null,b:null,done:false});await saveTeams(t,teams);return}
   if(a==='edit'){modal={k:'confirm',i:+row.dataset.t,j:+row.dataset.g};return render(true)}
   if(a==='yes'&&t){const teams=clone(t.teams);teams[modal.i].games[modal.j].done=false;modal=null;await saveTeams(t,teams);return render(true)}
   }catch(err){note='Fehler: '+(err.code||err.message||'unbekannt');render(true)}
