@@ -67,7 +67,7 @@ const SEED=[
 const ok=!firebaseConfig.apiKey.startsWith("DEIN");
 let auth,fs;
 if(ok){const app=initializeApp(firebaseConfig);auth=getAuth(app);fs=getFirestore(app)}
-let dfbA='',dfbB='',user=null,fixtures=[],tours=[],metas=[],tgs=[],note='',tab='plan',openT=null,modal=null,dirty=false,unsubs=[];
+let okNote='',dfbA='',dfbB='',user=null,fixtures=[],tours=[],metas=[],tgs=[],note='',tab='plan',openT=null,modal=null,dirty=false,unsubs=[];
 const seasonOf=d=>{const x=new Date(d||Date.now());const y=x.getFullYear(),s=x.getMonth()>=6?y:y-1;return s+'/'+String(s+1).slice(2)};
 let season=seasonOf();
 const $=s=>document.querySelector(s);
@@ -96,13 +96,13 @@ function render(force){
   else if(!user)h=`<h1>⚽ SV Menden U9</h1><div class="card lg"><label>E-Mail</label><input id="li-mail" type="email" autocomplete="username"><label>Passwort</label><input id="li-pw" type="password" autocomplete="current-password"><div class="acts"><button class="btn" data-act="login">Anmelden</button></div>${note?`<p class="note">${esc(note)}</p>`:''}</div>`;
   else{
     h=`<div class="top"><h1>⚽ SV Menden U9 · Jg. 2018</h1><select data-act="season">${seasons().map(s=>`<option ${s===season?'selected':''}>${s}</option>`).join('')}</select></div><div class="mut">${esc(user.email)} · <a href="#" data-act="logout" style="color:var(--acc)">Abmelden</a></div>`;
-    if(note)h+=`<p class="note">${esc(note)}</p>`;
+    if(note||okNote)h+=`<div data-act="dismiss" style="position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;z-index:30;padding:12px 14px;text-align:center;font-weight:600;color:#fff;background:${note?'#c0392b':'#1b7a43'}">${esc(note||okNote)}</div>`;
     if(openT)h+=tourView(openT);else{
       h+=`<div class="tabs">${[['plan','Spielplan'],['tours','Spiele'],['eval','Auswertung']].map(([k,l])=>`<button data-act="tab" data-k="${k}" class="${tab===k?'on':''}">${l}</button>`).join('')}</div>`;
       h+=tab==='plan'?planView():tab==='tours'?toursView():evalView();
     }
   }
-  $('#app').innerHTML=h+modalView();
+  $('#app').innerHTML=h+modalView()+'<div class="mut" style="margin-top:28px;text-align:center">Version D</div>';
 }
 function planView(){
   const today=new Date().toLocaleDateString('sv-SE');
@@ -165,6 +165,7 @@ async function saveTeams(t,teams){
 document.addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]');if(!b||b.tagName==='SELECT')return;
   const a=b.dataset.act,row=b.closest('[data-g]');
+  if(a==='dismiss'){note='';okNote='';return render(true)}
   if(a==='logout'){e.preventDefault();return signOut(auth)}
   if(a==='login'){try{note='';await signInWithEmailAndPassword(auth,v('li-mail').trim(),v('li-pw'))}catch(err){note='Anmeldung fehlgeschlagen. Bitte E-Mail und Passwort prüfen.';render(true)}return}
   if(a==='tab'){tab=b.dataset.k;note='';return render(true)}
@@ -199,7 +200,7 @@ document.addEventListener('click',async e=>{
   }
   if(a==='pm'&&t){const i=+row.dataset.t,j=+row.dataset.g,f=b.dataset.f,teams=clone(t.teams),g=teams[i].games[j];g[f]=Math.max(0,(g[f]||0)+(+b.dataset.d));await saveTeams(t,teams);return}
   if(a==='yes2'){const rid=modal.id;modal=null;if(openT===rid)openT=null;const tt=tours.find(x=>x.id===rid),n=tt?tt.teams.length:0;for(let i=0;i<n;i++)await deleteDoc(D('teamgames',rid+'_'+i));await deleteDoc(D('tournaments',rid));return render(true)}
-  if(a==='dfbsave'&&t){const A=dfbA,B=dfbB;if(A===''||B===''){note='Bitte beide Torzahlen für DFBnet eintragen.';return render(true)}note='';await setDoc(D('tournaments',t.id),{dfb:{a:+A,b:+B}},{merge:true});dfbA='';dfbB='';return}
+  if(a==='dfbsave'&&t){const A=dfbA!==''?dfbA:(v('dfb-a')||''),B=dfbB!==''?dfbB:(v('dfb-b')||'');if(A===''||B===''){note='Bitte beide Torzahlen für DFBnet eintragen.';return render(true)}note='';await setDoc(D('tournaments',t.id),{dfb:{a:+A,b:+B}},{merge:true});dfbA='';dfbB='';okNote='✓ DFBnet-Ergebnis gespeichert';render(true);setTimeout(()=>{okNote='';render()},2500);return}
   if(a==='dfbedit'){modal={k:'dfbc'};return render(true)}
   if(a==='yes3'&&t){modal=null;await setDoc(D('tournaments',t.id),{dfb:null},{merge:true});return render(true)}
   if(a==='addg'&&t){const i=+b.dataset.t,teams=clone(t.teams);teams[i].games.push({a:null,b:null,done:false});await saveTeams(t,teams);return}
