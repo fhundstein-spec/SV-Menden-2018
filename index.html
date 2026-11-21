@@ -59,4 +59,171 @@ const firebaseConfig={
 };
 
 const SEED=[
- ["fb-2
+ ["fb-230376021","SV Menden U9 – SV 09 Eitorf U9/I (Heim)","2026-11-21","Sportplatz Menden, Fritz-Schröder-Str., Sankt Augustin"],
+ ["fb-230376023","SV Menden U9 – ASV Sankt Augustin U9 (Heim)","2026-11-28","Sportplatz Menden, Fritz-Schröder-Str., Sankt Augustin"],
+ ["fb-230376026","SV Allner-Bödingen U9 – SV Menden U9 (Auswärts)","2026-12-05","Auswärts in Allner-Bödingen"],
+ ["fb-230376030","SV Menden U9 – SV Untere Sieg U9/I (Heim)","2026-12-12","Sportplatz Menden, Fritz-Schröder-Str., Sankt Augustin"]];
+
+const ok=!firebaseConfig.apiKey.startsWith("DEIN");
+let auth,fs;
+if(ok){const app=initializeApp(firebaseConfig);auth=getAuth(app);fs=getFirestore(app)}
+let dfbA='',dfbB='',user=null,fixtures=[],tours=[],metas=[],tgs=[],note='',tab='plan',openT=null,modal=null,dirty=false,unsubs=[];
+const seasonOf=d=>{const x=new Date(d||Date.now());const y=x.getFullYear(),s=x.getMonth()>=6?y:y-1;return s+'/'+String(s+1).slice(2)};
+let season=seasonOf();
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=d=>d?new Date(d+'T12:00').toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}):'';
+const uid=()=>Math.random().toString(36).slice(2,10);
+const clone=o=>JSON.parse(JSON.stringify(o));
+const v=id=>($('#'+id)||{}).value;
+const D=(c,id)=>doc(fs,c,id);
+
+function compose(){tours=metas.map(m=>{const n=m.n||0;return {...m,teams:Array.from({length:n},(_,i)=>{const d=tgs.find(x=>x.id===m.id+'_'+i);return {games:d?d.games:[]}})}})}
+function stats(t){return t.teams.map((tm,ti)=>{const s={n:'U9-Team '+(ti+1),p:0,w:0,d:0,l:0,gf:0,ga:0};tm.games.forEach(g=>{if(!g.done)return;s.p++;s.gf+=g.a;s.ga+=g.b;g.a>g.b?s.w++:g.a<g.b?s.l++:s.d++});return s})}
+const sum=a=>a.reduce((x,s)=>({p:x.p+s.p,w:x.w+s.w,d:x.d+s.d,l:x.l+s.l,gf:x.gf+s.gf,ga:x.ga+s.ga}),{p:0,w:0,d:0,l:0,gf:0,ga:0});
+function table(rows,first,tot){
+  const r=s=>`<td>${s.p}</td><td class="w">${s.w}</td><td class="d">${s.d}</td><td class="l">${s.l}</td><td>${s.gf}:${s.ga}</td>`;
+  return `<div class="wrap"><table class="tbl"><tr><th>${first}</th><th>Sp</th><th>S</th><th>U</th><th>N</th><th>Tore</th></tr>${rows.map(s=>`<tr><td>${esc(s.n)}</td>${r(s)}</tr>`).join('')}${tot?`<tr class="tot"><td>Gesamt</td>${r(tot)}</tr>`:''}</table></div>`;
+}
+const seasons=()=>{const s=new Set([seasonOf()]);fixtures.concat(tours).forEach(x=>x.season&&s.add(x.season));return [...s].sort().reverse()};
+
+function render(force){
+  const a=document.activeElement;
+  if(!force&&a&&a.tagName==='INPUT'&&$('#app').contains(a)){dirty=true;return}
+  dirty=false;
+  let h='';
+  if(!ok)h=`<h1>⚽ SV Menden U9</h1><p class="note">Die Firebase-Zugangsdaten fehlen noch. Trage sie oben in der Datei index.html ein.</p>`;
+  else if(!user)h=`<h1>⚽ SV Menden U9</h1><div class="card lg"><label>E-Mail</label><input id="li-mail" type="email" autocomplete="username"><label>Passwort</label><input id="li-pw" type="password" autocomplete="current-password"><div class="acts"><button class="btn" data-act="login">Anmelden</button></div>${note?`<p class="note">${esc(note)}</p>`:''}</div>`;
+  else{
+    h=`<div class="top"><h1>⚽ SV Menden U9 · Jg. 2018</h1><select data-act="season">${seasons().map(s=>`<option ${s===season?'selected':''}>${s}</option>`).join('')}</select></div><div class="mut">${esc(user.email)} · <a href="#" data-act="logout" style="color:var(--acc)">Abmelden</a></div>`;
+    if(note)h+=`<p class="note">${esc(note)}</p>`;
+    if(openT)h+=tourView(openT);else{
+      h+=`<div class="tabs">${[['plan','Spielplan'],['tours','Spiele'],['eval','Auswertung']].map(([k,l])=>`<button data-act="tab" data-k="${k}" class="${tab===k?'on':''}">${l}</button>`).join('')}</div>`;
+      h+=tab==='plan'?planView():tab==='tours'?toursView():evalView();
+    }
+  }
+  $('#app').innerHTML=h+modalView();
+}
+function planView(){
+  const today=new Date().toLocaleDateString('sv-SE');
+  const list=fixtures.filter(f=>f.season===season&&f.date>=today).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  let h=`<button class="btn" data-act="newfix">+ Spiel eintragen</button>`;
+  if(!fixtures.length)h+=` <button class="btn sec" data-act="seed">Spielplan 2026/27 laden</button>`;
+  if(!list.length)h+=`<p class="mut">Keine kommenden Spiele für ${season}.</p>`;
+  list.forEach(f=>{const t=tours.find(t=>t.fixtureId===f.id);
+    h+=`<div class="card item" data-act="fix" data-id="${f.id}"><div><b>${esc(f.title)}</b><div class="mut">${fmt(f.date)}${f.time?', '+esc(f.time)+' Uhr':''}${f.place?' · '+esc(f.place):''}</div></div>${t?`<div style="text-align:right"><span class="badge">Spiel läuft</span><div style="margin-top:6px"><button class="btn sec sm" data-act="reset" data-id="${t.id}">Zurücksetzen</button></div></div>`:'<span class="mut">Starten ›</span>'}</div>`});
+  return h;
+}
+function toursView(){
+  const list=tours.filter(t=>t.season===season).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  let h=`<button class="btn" data-act="setup" data-id="">+ Spiel ohne Spielplan</button>`;
+  if(!list.length)h+=`<p class="mut">Noch keine Spiele in ${season}.</p>`;
+  list.forEach(t=>{const s=sum(stats(t)),tot=t.teams.reduce((n,x)=>n+x.games.length,0);
+    h+=`<div class="card item" data-act="open" data-id="${t.id}"><div><b>${esc(t.title)}</b><div class="mut">${fmt(t.date)} · ${t.teams.length} Teams</div></div><div style="text-align:right"><span class="mut">${s.p}/${tot} Spiele ›</span>${t.dfb?`<div><b>DFBnet ${t.dfb.a}:${t.dfb.b}</b></div>`:''}</div></div>`});
+  return h;
+}
+function evalView(){
+  const list=tours.filter(t=>t.season===season).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if(!list.length)return `<p class="mut">Noch keine Daten für ${season}.</p>`;
+  const rows=list.map(t=>({n:t.title+' ('+fmt(t.date).replace(/^\S+ /,'')+')'+(t.dfb?' · DFBnet '+t.dfb.a+':'+t.dfb.b:''),...sum(stats(t))}));
+  const tot=sum(rows);
+  return `<h2>Saison ${season}</h2><div class="card">${table(rows,'Spiel',tot)}</div>${tot.p?`<p class="mut">Siegquote: ${Math.round(tot.w/tot.p*100)} % · Torverhältnis ${tot.gf}:${tot.ga}</p>`:''}`;
+}
+const stp=(f,x)=>`<span class="stp"><button class="pm" data-act="pm" data-f="${f}" data-d="-1">−</button><input class="sc" data-f="${f}" type="number" inputmode="numeric" min="0" placeholder="0" value="${x==null?'':x}"><button class="pm" data-act="pm" data-f="${f}" data-d="1">+</button></span>`;
+function tourView(id){
+  const t=tours.find(x=>x.id===id);if(!t)return `<button class="btn sec sm" data-act="back">‹ Zurück</button>`;
+  let h=`<button class="btn sec sm" data-act="back">‹ Zurück</button><h2>${esc(t.title)}</h2><div class="mut">${fmt(t.date)}</div><div class="mut">Links = Heim · Rechts = Auswärts. Tore per Zahl oder mit + / − zählen, dann ✓ speichern.</div>`;
+  t.teams.forEach((tm,i)=>{
+    h+=`<div class="card"><b>U9-Team ${i+1}</b><div class="row hd"><span class="r"></span><span class="stp">Heim</span><span style="width:6px"></span><span class="stp">Auswärts</span></div>`;
+    tm.games.forEach((g,j)=>{
+      h+=`<div class="row" data-t="${i}" data-g="${j}"><span class="r">Spiel ${j+1}</span>`;
+      if(g.done)h+=`<span class="stp"><b style="font-size:18px;color:var(--tx)">${g.a}</b></span><span>:</span><span class="stp"><b style="font-size:18px;color:var(--tx)">${g.b}</b></span><button class="btn sec sm" data-act="edit">Ändern</button>`;
+      else h+=`${stp('a',g.a)}<span>:</span>${stp('b',g.b)}<button class="btn sm" data-act="save">✓</button>`;
+      h+=`</div>`;
+    });
+    h+=`<button class="btn sec sm" data-act="addg" data-t="${i}">+ Spiel anlegen</button></div>`;
+  });
+  h+=`<div class="card"><b>DFBnet – finales Ergebnis</b><div class="mut">Ergebnis, auf das ihr euch geeinigt habt (Heim : Auswärts)</div>`+(t.dfb?`<div class="row"><span class="stp"><b style="font-size:18px;color:var(--tx)">${t.dfb.a}</b></span><span>:</span><span class="stp"><b style="font-size:18px;color:var(--tx)">${t.dfb.b}</b></span><button class="btn sec sm" data-act="dfbedit">Ändern</button></div>`:`<div class="row"><span class="stp"><input class="sc" id="dfb-a" type="number" inputmode="numeric" min="0" placeholder="0" value="${dfbA}"></span><span>:</span><span class="stp"><input class="sc" id="dfb-b" type="number" inputmode="numeric" min="0" placeholder="0" value="${dfbB}"></span><button class="btn sm" data-act="dfbsave">✓</button></div>`)+`</div>`;
+  const st=stats(t);return h+`<h2>Auswertung</h2><div class="card">${table(st,'Team',sum(st))}</div>`;
+}
+function modalView(){
+  if(!modal)return '';
+  let b='';
+  if(modal.k==='newfix')b=`<h2>Spiel eintragen</h2><label>Titel</label><input id="m-title"><label>Datum</label><input id="m-date" type="date"><label>Uhrzeit</label><input id="m-time" type="time"><label>Ort</label><input id="m-place"><div class="acts"><button class="btn sec" data-act="close">Abbrechen</button><button class="btn" data-act="mkfix">Speichern</button></div>`;
+  if(modal.k==='setup'){const f=fixtures.find(x=>x.id===modal.id)||{};b=`<h2>Spiel starten</h2><label>Titel</label><input id="m-title" value="${esc(f.title||'')}"><label>Datum</label><input id="m-date" type="date" value="${esc(f.date||new Date().toISOString().slice(0,10))}"><label>Anzahl unserer Teams</label><input id="m-teams" type="number" inputmode="numeric" min="1" max="8" value="3"><label>Spiele pro Team</label><input id="m-games" type="number" inputmode="numeric" min="1" max="20" value="5"><p class="mut">Daraus wird der Spielplan erzeugt (z. B. 3 Teams × 5 Spiele = 15 Spiele).</p><div class="acts"><button class="btn sec" data-act="close">Abbrechen</button><button class="btn" data-act="mk" data-id="${modal.id||''}">Spielplan erstellen</button></div>`}
+  if(modal.k==='reset')b=`<h2>Spiel zurücksetzen?</h2><p>Möchtest du das Spiel wirklich auf 0 zurücksetzen? Alle eingetragenen Ergebnisse werden gelöscht. Danach kannst du Teams und Spiele neu festlegen.</p><div class="acts"><button class="btn sec" data-act="close">Nein</button><button class="btn" data-act="yes2">Ja, zurücksetzen</button></div>`;
+  if(modal.k==='dfbc')b=`<h2>DFBnet-Ergebnis ändern?</h2><p>Möchtest du das DFBnet-Ergebnis wirklich ändern?</p><div class="acts"><button class="btn sec" data-act="close">Nein</button><button class="btn" data-act="yes3">Ja, ändern</button></div>`;
+  if(modal.k==='confirm')b=`<h2>Ergebnis ändern?</h2><p>Möchtest du das gespeicherte Ergebnis wirklich ändern?</p><div class="acts"><button class="btn sec" data-act="close">Nein</button><button class="btn" data-act="yes">Ja, ändern</button></div>`;
+  return `<div class="ov"><div class="md">${b}</div></div>`;
+}
+
+async function saveTeams(t,teams){
+  try{for(let i=0;i<teams.length;i++){if(JSON.stringify(teams[i].games)!==JSON.stringify(t.teams[i].games))await setDoc(D('teamgames',t.id+'_'+i),{tid:t.id,i,games:teams[i].games})}}
+  catch(e){note='Speichern fehlgeschlagen: '+(e.code||e.message);render(true)}
+}
+
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-act]');if(!b||b.tagName==='SELECT')return;
+  const a=b.dataset.act,row=b.closest('[data-g]');
+  if(a==='logout'){e.preventDefault();return signOut(auth)}
+  if(a==='login'){try{note='';await signInWithEmailAndPassword(auth,v('li-mail').trim(),v('li-pw'))}catch(err){note='Anmeldung fehlgeschlagen. Bitte E-Mail und Passwort prüfen.';render(true)}return}
+  if(a==='tab'){tab=b.dataset.k;note='';return render(true)}
+  if(a==='back'){openT=null;dfbA='';dfbB='';return render(true)}
+  if(a==='open'){openT=b.dataset.id;dfbA='';dfbB='';return render(true)}
+  if(a==='newfix'){modal={k:'newfix'};return render(true)}
+  if(a==='reset'){modal={k:'reset',id:b.dataset.id};return render(true)}
+  if(a==='setup'){modal={k:'setup',id:b.dataset.id};return render(true)}
+  if(a==='close'){modal=null;return render(true)}
+  if(a==='fix'){const t=tours.find(t=>t.fixtureId===b.dataset.id);if(t){openT=t.id;dfbA='';dfbB=''}else modal={k:'setup',id:b.dataset.id};return render(true)}
+  try{
+  if(a==='seed'){for(const [id,title,date,place] of SEED)await setDoc(D('fixtures',id),{title,date,time:'09:30',place,season:seasonOf(date),createdAt:Date.now()});return}
+  if(a==='mkfix'){
+    const title=(v('m-title')||'').trim(),date=v('m-date');
+    if(!title||!date){note='Bitte Titel und Datum angeben.';modal=null;return render(true)}
+    await addDoc(collection(fs,'fixtures'),{title,date,time:v('m-time')||'',place:(v('m-place')||'').trim(),season:seasonOf(date),createdAt:Date.now()});
+    modal=null;note='';return render(true);
+  }
+  if(a==='mk'){
+    const n=Math.min(8,Math.max(1,+v('m-teams')||1)),k=Math.min(20,Math.max(1,+v('m-games')||1));
+    const date=v('m-date')||new Date().toISOString().slice(0,10),title=(v('m-title')||'').trim()||'Spiel';
+    const fid=b.dataset.id||null,id=fid||uid();
+    for(let i=0;i<n;i++)await setDoc(D('teamgames',id+'_'+i),{tid:id,i,games:Array.from({length:k},()=>({a:null,b:null,done:false}))});
+    await setDoc(D('tournaments',id),{title,date,season:seasonOf(date),fixtureId:fid,n,createdAt:Date.now()});
+    modal=null;openT=id;return render(true);
+  }
+  const t=tours.find(x=>x.id===openT);
+  if(a==='save'&&t){
+    const i=+row.dataset.t,j=+row.dataset.g,A=row.querySelector('input[data-f=a]').value,B=row.querySelector('input[data-f=b]').value;
+    const teams=clone(t.teams);Object.assign(teams[i].games[j],{a:+A||0,b:+B||0,done:true});
+    note='';await saveTeams(t,teams);return;
+  }
+  if(a==='pm'&&t){const i=+row.dataset.t,j=+row.dataset.g,f=b.dataset.f,teams=clone(t.teams),g=teams[i].games[j];g[f]=Math.max(0,(g[f]||0)+(+b.dataset.d));await saveTeams(t,teams);return}
+  if(a==='yes2'){const rid=modal.id;modal=null;if(openT===rid)openT=null;const tt=tours.find(x=>x.id===rid),n=tt?tt.teams.length:0;for(let i=0;i<n;i++)await deleteDoc(D('teamgames',rid+'_'+i));await deleteDoc(D('tournaments',rid));return render(true)}
+  if(a==='dfbsave'&&t){const A=dfbA,B=dfbB;if(A===''||B===''){note='Bitte beide Torzahlen für DFBnet eintragen.';return render(true)}note='';await setDoc(D('tournaments',t.id),{dfb:{a:+A,b:+B}},{merge:true});dfbA='';dfbB='';return}
+  if(a==='dfbedit'){modal={k:'dfbc'};return render(true)}
+  if(a==='yes3'&&t){modal=null;await setDoc(D('tournaments',t.id),{dfb:null},{merge:true});return render(true)}
+  if(a==='addg'&&t){const i=+b.dataset.t,teams=clone(t.teams);teams[i].games.push({a:null,b:null,done:false});await saveTeams(t,teams);return}
+  if(a==='edit'){modal={k:'confirm',i:+row.dataset.t,j:+row.dataset.g};return render(true)}
+  if(a==='yes'&&t){const teams=clone(t.teams);teams[modal.i].games[modal.j].done=false;modal=null;await saveTeams(t,teams);return render(true)}
+  }catch(err){note='Fehler: '+(err.code||err.message||'unbekannt');render(true)}
+});
+document.addEventListener('change',async e=>{
+  const el=e.target;
+  if(el.dataset.act==='season'){season=el.value;return render(true)}
+  if((el.dataset.f==='a'||el.dataset.f==='b')&&el.tagName==='INPUT'&&user){const row=el.closest('[data-g]'),t=tours.find(x=>x.id===openT);if(!t)return;
+    const teams=clone(t.teams);teams[+row.dataset.t].games[+row.dataset.g][el.dataset.f]=el.value===''?null:Math.max(0,+el.value);await saveTeams(t,teams)}
+});
+document.addEventListener('input',e=>{if(e.target.id==='dfb-a')dfbA=e.target.value;if(e.target.id==='dfb-b')dfbB=e.target.value});
+document.addEventListener('focusout',()=>setTimeout(()=>{if(dirty&&!(document.activeElement&&document.activeElement.tagName==='INPUT'))render(true)},700));
+
+function subscribe(){
+  const err=e=>{note='Zugriff verweigert oder Fehler: '+(e.code||'');render(true)};
+  unsubs.push(onSnapshot(collection(fs,'fixtures'),s=>{fixtures=s.docs.map(d=>({id:d.id,...d.data()}));render()},err));
+  unsubs.push(onSnapshot(collection(fs,'tournaments'),s=>{metas=s.docs.map(d=>({id:d.id,...d.data()}));compose();render()},err));
+  unsubs.push(onSnapshot(collection(fs,'teamgames'),s=>{tgs=s.docs.map(d=>({id:d.id,...d.data()}));compose();render()},err));
+}
+render(true);
+if(ok)onAuthStateChanged(auth,u=>{user=u;unsubs.forEach(f=>f());unsubs=[];if(u)subscribe();else{fixtures=[];tours=[];metas=[];tgs=[];openT=null}render(true)});
+</script>
+</body>
+</html>
