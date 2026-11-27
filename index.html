@@ -102,7 +102,7 @@ function render(force){
       h+=tab==='plan'?planView():tab==='tours'?toursView():evalView();
     }
   }
-  $('#app').innerHTML=h+modalView()+'<div class="mut" style="margin-top:28px;text-align:center">Version F</div>';
+  $('#app').innerHTML=h+modalView()+'<div class="mut" style="margin-top:28px;text-align:center">Version G</div>';
 }
 function planView(){
   const today=new Date().toLocaleDateString('sv-SE');
@@ -130,6 +130,7 @@ function evalView(){
   return `<h2>Saison ${season}</h2><div class="card">${table(rows,'Spiel',tot)}</div>${tot.p?`<p class="mut">Siegquote: ${Math.round(tot.w/tot.p*100)} % · Torverhältnis ${tot.gf}:${tot.ga}</p>`:''}`;
 }
 const stp=(f,x)=>`<span class="stp"><button class="pm" data-act="pm" data-f="${f}" data-d="-1">−</button><input class="sc" data-f="${f}" type="number" inputmode="numeric" min="0" placeholder="0" value="${x==null?'':x}"><button class="pm" data-act="pm" data-f="${f}" data-d="1">+</button></span>`;
+const canDel=tm=>{const l=tm.games[tm.games.length-1];return !!l&&!l.done&&!(l.a||0)&&!(l.b||0)};
 function tourView(id){
   const t=tours.find(x=>x.id===id);if(!t)return `<button class="btn sec sm" data-act="back">‹ Zurück</button>`;
   let h=`<button class="btn sec sm" data-act="back">‹ Zurück</button><h2>${esc(t.title)}</h2><div class="mut">${fmt(t.date)}</div><div class="mut">Links = Heim · Rechts = Auswärts. Tore per Zahl oder mit + / − zählen, dann ✓ speichern.</div>`;
@@ -141,7 +142,7 @@ function tourView(id){
       else h+=`${stp('a',g.a)}<span>:</span>${stp('b',g.b)}<button class="btn sm" data-act="save">✓</button>`;
       h+=`</div>`;
     });
-    h+=`<button class="btn sec sm" data-act="addg" data-t="${i}">+ Spiel anlegen</button></div>`;
+    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec sm" data-act="addg" data-t="${i}">+ Spiel anlegen</button>${canDel(tm)?`<button class="btn sec sm" data-act="delg" data-t="${i}">− Letztes Spiel löschen</button>`:''}</div></div>`;
   });
   const dfbCard=`<div class="card"><b>DFBnet – finales Ergebnis</b><div class="mut">Ergebnis, auf das ihr euch geeinigt habt (Heim : Auswärts)</div>`+(t.dfb?`<div class="row"><span class="stp"><b style="font-size:18px;color:var(--tx)">${t.dfb.a}</b></span><span>:</span><span class="stp"><b style="font-size:18px;color:var(--tx)">${t.dfb.b}</b></span><button class="btn sec sm" data-act="dfbedit">Ändern</button></div>`:`<div class="row"><span class="stp"><input class="sc" id="dfb-a" type="number" inputmode="numeric" min="0" placeholder="0" value="${dfbA}"></span><span>:</span><span class="stp"><input class="sc" id="dfb-b" type="number" inputmode="numeric" min="0" placeholder="0" value="${dfbB}"></span><button class="btn sm" data-act="dfbsave">✓</button></div>`)+`</div>`;
   const st=stats(t);return h+`<h2>Auswertung</h2><div class="card">${table(st,'Team',sum(st))}</div>`+dfbCard;
@@ -152,6 +153,7 @@ function modalView(){
   if(modal.k==='newfix')b=`<h2>Spiel eintragen</h2><label>Titel</label><input id="m-title"><label>Datum</label><input id="m-date" type="date"><label>Uhrzeit</label><input id="m-time" type="time"><label>Ort</label><input id="m-place"><div class="acts"><button class="btn sec" data-act="close">Abbrechen</button><button class="btn" data-act="mkfix">Speichern</button></div>`;
   if(modal.k==='setup'){const f=fixtures.find(x=>x.id===modal.id)||{};b=`<h2>Spiel starten</h2><label>Titel</label><input id="m-title" value="${esc(f.title||'')}"><label>Datum</label><input id="m-date" type="date" value="${esc(f.date||new Date().toISOString().slice(0,10))}"><label>Anzahl unserer Teams</label><input id="m-teams" type="number" inputmode="numeric" min="1" max="8" value="3"><label>Spiele pro Team</label><input id="m-games" type="number" inputmode="numeric" min="1" max="20" value="5"><p class="mut">Daraus wird der Spielplan erzeugt (z. B. 3 Teams × 5 Spiele = 15 Spiele).</p><div class="acts"><button class="btn sec" data-act="close">Abbrechen</button><button class="btn" data-act="mk" data-id="${modal.id||''}">Spielplan erstellen</button></div>`}
   if(modal.k==='reset')b=`<h2>Spiel zurücksetzen?</h2><p>Möchtest du das Spiel wirklich auf 0 zurücksetzen? Alle eingetragenen Ergebnisse werden gelöscht. Danach kannst du Teams und Spiele neu festlegen.</p><div class="acts"><button class="btn sec" data-act="close">Nein</button><button class="btn" data-act="yes2">Ja, zurücksetzen</button></div>`;
+  if(modal.k==='delg')b=`<h2>Spiel löschen?</h2><p>Möchtest du dieses Spiel wirklich löschen?</p><div class="acts"><button class="btn sec" data-act="close">Nein</button><button class="btn" data-act="yes4">Ja, löschen</button></div>`;
   if(modal.k==='dfbc')b=`<h2>DFBnet-Ergebnis ändern?</h2><p>Möchtest du das DFBnet-Ergebnis wirklich ändern?</p><div class="acts"><button class="btn sec" data-act="close">Nein</button><button class="btn" data-act="yes3">Ja, ändern</button></div>`;
   if(modal.k==='confirm')b=`<h2>Ergebnis ändern?</h2><p>Möchtest du das gespeicherte Ergebnis wirklich ändern?</p><div class="acts"><button class="btn sec" data-act="close">Nein</button><button class="btn" data-act="yes">Ja, ändern</button></div>`;
   return `<div class="ov"><div class="md">${b}</div></div>`;
@@ -173,6 +175,7 @@ document.addEventListener('click',async e=>{
   if(a==='open'){openT=b.dataset.id;dfbA='';dfbB='';return render(true)}
   if(a==='newfix'){modal={k:'newfix'};return render(true)}
   if(a==='reset'){modal={k:'reset',id:b.dataset.id};return render(true)}
+  if(a==='delg'){modal={k:'delg',i:+b.dataset.t};return render(true)}
   if(a==='setup'){modal={k:'setup',id:b.dataset.id};return render(true)}
   if(a==='close'){modal=null;return render(true)}
   if(a==='fix'){const t=tours.find(t=>t.fixtureId===b.dataset.id);if(t){openT=t.id;dfbA='';dfbB=''}else modal={k:'setup',id:b.dataset.id};return render(true)}
@@ -203,6 +206,7 @@ document.addEventListener('click',async e=>{
   if(a==='dfbsave'&&t){const A=dfbA!==''?dfbA:(v('dfb-a')||''),B=dfbB!==''?dfbB:(v('dfb-b')||'');if(A===''||B===''){note='Bitte beide Torzahlen für DFBnet eintragen.';return render(true)}note='';await setDoc(D('tournaments',t.id),{dfb:{a:+A,b:+B}},{merge:true});dfbA='';dfbB='';okNote='✓ DFBnet-Ergebnis gespeichert';render(true);setTimeout(()=>{okNote='';render()},2500);return}
   if(a==='dfbedit'){modal={k:'dfbc'};return render(true)}
   if(a==='yes3'&&t){modal=null;await setDoc(D('tournaments',t.id),{dfb:null},{merge:true});return render(true)}
+  if(a==='yes4'&&t){const teams=clone(t.teams),g=teams[modal.i].games,l=g[g.length-1];modal=null;if(!l||l.done||(l.a||0)!==0||(l.b||0)!==0){note='Das letzte Spiel hat schon ein Ergebnis und kann nicht gelöscht werden.';return render(true)}g.pop();await saveTeams(t,teams);return render(true)}
   if(a==='addg'&&t){const i=+b.dataset.t,teams=clone(t.teams);teams[i].games.push({a:null,b:null,done:false});await saveTeams(t,teams);return}
   if(a==='edit'){modal={k:'confirm',i:+row.dataset.t,j:+row.dataset.g};return render(true)}
   if(a==='yes'&&t){const teams=clone(t.teams);teams[modal.i].games[modal.j].done=false;modal=null;await saveTeams(t,teams);return render(true)}
